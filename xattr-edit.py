@@ -111,7 +111,11 @@ def metalist(pattern) :
             logger.error("Expected file list at <stdin>")
 
 def applychanges(f,delete=False) :
-    data=archieml.load(open(f))
+    if f=='-' :
+        data=archieml.load(sys.stdin)
+        logger.info("Reading file attribute data from <stdin>")
+    else :
+        data=archieml.load(open(f))
     counter=dict(files=0,attribs=0,dels=0)
     if "files" not in data :
         logger.error(f"No 'files' list found in edited file {f}")
@@ -178,22 +182,24 @@ def run(path='',force=config.force,delete=True,loglevel=config.loglevel,fromfile
 
     Interactive mode:
 
-          xattr-editor [PATH/GLOB PATTERN]
+          xattr-edit.py [PATH/GLOB PATTERN]
 
 
 
     Dump extended attributes to file (to edit) :
 
-          xattr-editor [PATH/GLOB PATTERN] >attrlist.txt
+          xattr-edit.py [PATH/GLOB PATTERN] >attrlist.txt
 
            - or (filenames from stdin) -
 
-          find . -name '*png' | xattr-editor >attrlist.txt
+          find . -name '*png' | xattr-edit.py >attrlist.txt
 
 
           (then edit attrlist.txt, and then)
 
-          xattr-editor --fromfile=attrlist.txt
+          xattr-edit.py --fromfile=attrlist.txt
+
+          --fromfile=- will read from <stdin>.
 
 
 
@@ -204,9 +210,11 @@ def run(path='',force=config.force,delete=True,loglevel=config.loglevel,fromfile
 
     --force='("date","author")' will insert empty attributes with the names listed (date and author) for every file, like a blank form to be filled in. Please use a python tuple literal like the one above, e.g. --force='()' for en empty list. The default list is defined in the config module whithin this module.
 
-    --loglevel=10 will set logging to "DEBUG", --loglevel=40 to "ERROR". Default is 20 ("INFO")
+    --loglevel=DEBUG|INFO|ERROR. Default is "INFO"
 
     """
+    if hasattr(logging,loglevel) :
+        loglevel=getattr(logging,loglevel)
     logging.basicConfig(level=loglevel,stream=sys.stderr)
     counter=False
     if sys.stdout.isatty() and sys.stdin.isatty():
@@ -218,8 +226,11 @@ def run(path='',force=config.force,delete=True,loglevel=config.loglevel,fromfile
                 subprocess.run([os.environ.get("EDITOR",""),tf.name])
                 counter=applychanges(tf.name,delete=delete)
     else :
-        logger.info(f"STDIN is not a TTY - assuming file name list as input, dumping attributes list to {sys.stdout.name}")
-        sys.stdout.write(render(items=metalist(path),force=force))
+        if fromfile is None :
+            logger.info(f"STDIN is not a TTY - assuming newline-separated file name list from <stdin>, dumping attributes list to {sys.stdout.name}")
+            sys.stdout.write(render(items=metalist(path),force=force))
+        else :
+            logger.info(f"STDIN is not a TTY, --fromfile parameter is given  - assuming attributes list from <stdin>.")
     if fromfile is not None :
         logger.info(f"Reading {fromfile} for changes")
         counter=applychanges(fromfile,delete=delete)
