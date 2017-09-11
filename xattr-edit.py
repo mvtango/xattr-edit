@@ -26,33 +26,44 @@ class config:
 
     myattrs = ('path','name')
 
-    force = ('datum', 'betrag', 'betreff', 'via')
+    edit = ('datum', 'betrag', 'betreff', 'via')
 
-    loglevel = logging.INFO
+    loglevel = "INFO"
 
-
-    template=env.from_string("""
+    some_template=env.from_string("""
 {% for file in items %}
 {{ "{files." }}{{ file.stat.ino }}{{ "}" }}
+name: {{file.path.name}}
 path: {{file.path}}
 --------------------------------------------------------------------------------------
-name: {{file.path.name}}
-{%- for k in force : %}
+{%- for k in edit : %}
 {{ k }}: {{ file.attr.get(k) }}
 {%- endfor %}
-{%- for k,v in file.attr.items() : %}{%- if k not in force :%}
-{{ k }}: {{ v }}
-{%- endif %}{%- endfor %}
 
 {% endfor %}
+""")
 
+    all_template=env.from_string("""
+{% for file in items %}
+{{ "{files." }}{{ file.stat.ino }}{{ "}" }}
+name: {{file.path.name}}
+path: {{file.path}}
+--------------------------------------------------------------------------------------
+{%- for k,v in file.attr.items() : %}
+{{ k }}: {{ v }}
+{%- endfor %}
+
+{% endfor %}
 """)
 
 
 
 
-def render(items,force=config.force) :
-    return config.template.render(items=items,force=force)
+def render(items,edit=config.edit) :
+    if edit :
+        return config.some_template.render(items=items,edit=edit)
+    else :
+        return config.all_template.render(items=items)
 
 
 class attrwrapper(xattr) :
@@ -65,12 +76,28 @@ class attrwrapper(xattr) :
         except OSError :
             e=default
         if type(e) == type(b'') :
-            e=e.decode("utf-8")
+            try :
+                e=e.decode("utf-8")
+            except UnicodeDecodeError :
+                pass
+                e=base64.b85encode(e)
         return e
 
     def set(self,item,value) :
         if item.find("user.")==-1 :
             item=f"user.{item}"
+        test=self.get(item)
+        if test[0:2]=="b'" and value[-1]=="'" :
+                raise ValueError(f"Error setting {item}: Overwriting binary attribute values is currently not supported.")
+                return
+        if value[0:2]=="b'" and value[-1]=="'" :
+            try :
+                value=base64.b85decode(value[2:-1])
+            except ValueError as e :
+                raise ValueError(f"Base 85 decode error: {value} {e}")
+            else :
+                raise ValueError(f"Error setting {item}: Setting binary attribute values is currently not supported.")
+                return
         if type(value) == type('') :
             value=value.encode("utf-8")
         xattr.set(self,item,value)
@@ -110,7 +137,7 @@ def metalist(pattern) :
         else :
             logger.error("Expected file list at <stdin>")
 
-def applychanges(f,delete=False) :
+def applychanges(f,delete=False,edit=()) :
     if f=='-' :
         data=archieml.load(sys.stdin)
         logger.info("Reading file attribute data from <stdin>")
@@ -131,19 +158,22 @@ def applychanges(f,delete=False) :
                 if k in config.myattrs :
                     logging.debug(f"ignoring attribute {k}, in exlusion list {config.myattrs}")
                     continue
+                if edit and k not in edit :
+                    logging.debug(f"Ignoring {k} - not in edit list {edit}")
+                    continue
                 cv=attr.get(k,default=None)
                 # if cv == v :
                 #    logger.debug(f"Unchanged: {k}")
                 # else :
-                if cv != v :
+                if cv != v and str(cv) != v:
                     if not changing :
                         changing = True
                         logger.info(f"Changing xattrs of {filedata['path']}:")
                         counter["files"]+=1
                     try :
                         attr.set(k,v)
-                    except IOError :
-                        logger.error(f"  - Error changing attribute {k} to {v}")
+                    except (IOError,ValueError) as e :
+                        logger.error(f"{e} while trying to change attribute {k} to {v}")
                     else :
                         counter["attribs"]+=1
                         logger.info(f"  - set {k} to '{v}' (old value: '{cv}')")
@@ -156,6 +186,9 @@ def applychanges(f,delete=False) :
                         changing = True
                         logger.info(f"Changing xattrs of {filedata['path']}:")
                         counter["files"]+=1
+                    if edit and k not in edit :
+                        logging.debug(f"Ignoring deletion request for {k} - not in edit list {edit}")
+                        continue
                     v=attr[k]
                     del attr[k]
                     logger.info(f"  - deleted attribute {k} value '{v}'")
@@ -177,7 +210,7 @@ def test_archieml() :
     pprint.pprint(archieml.loads(a))
 
 
-def run(path='',force=config.force,delete=True,loglevel=config.loglevel,fromfile=None) :
+def run(path='',edit=config.edit,delete=False,loglevel=config.loglevel,fromfile=None) :
     """
 
     Interactive mode:
@@ -206,34 +239,36 @@ def run(path='',force=config.force,delete=True,loglevel=config.loglevel,fromfile
 
     [GLOB PATTERN] supports patters from python pathlib, like './**/*gz' for "all .gz files in all directories below this one".
 
-    --delete=False will avoid deleting extended attributes that are present in the input data, but not in the files
+    --delete=True will avoid deleting extended attributes that are present in the input data, but not in the files
 
-    --force='("date","author")' will insert empty attributes with the names listed (date and author) for every file, like a blank form to be filled in. Please use a python tuple literal like the one above, e.g. --force='()' for en empty list. The default list is defined in the config module whithin this module.
+    --edit='("date","author")' will limit editing to the listed attributes, inserting empty values if they are not present. Please use a python tuple literal like the one above, and --edit='()' to edit all attributes. The default list is defined in the config module whithin this module.
 
     --loglevel=DEBUG|INFO|ERROR. Default is "INFO"
 
     """
-    if hasattr(logging,loglevel) :
-        loglevel=getattr(logging,loglevel)
+    if hasattr(logging,loglevel.upper()) :
+        loglevel=getattr(logging,loglevel.upper())
+    else :
+        loglevel=logging.INFO
     logging.basicConfig(level=loglevel,stream=sys.stderr)
     counter=False
     if sys.stdout.isatty() and sys.stdin.isatty():
         if fromfile is None:
             logger.info("Interactive Edit Mode")
             with tempfile.NamedTemporaryFile(mode="w",encoding="utf-8",delete=False) as tf :
-                tf.write(render(items=metalist(path),force=force))
+                tf.write(render(items=metalist(path),edit=edit))
                 tf.close()
                 subprocess.run([os.environ.get("EDITOR",""),tf.name])
-                counter=applychanges(tf.name,delete=delete)
+                counter=applychanges(tf.name,delete=delete,edit=edit)
     else :
         if fromfile is None :
             logger.info(f"STDIN is not a TTY - assuming newline-separated file name list from <stdin>, dumping attributes list to {sys.stdout.name}")
-            sys.stdout.write(render(items=metalist(path),force=force))
+            sys.stdout.write(render(items=metalist(path),edit=edit))
         else :
             logger.info(f"STDIN is not a TTY, --fromfile parameter is given  - assuming attributes list from <stdin>.")
     if fromfile is not None :
         logger.info(f"Reading {fromfile} for changes")
-        counter=applychanges(fromfile,delete=delete)
+        counter=applychanges(fromfile,delete=delete,edit=edit)
     if counter and counter.get("files",0)>0 :
         logger.info(f"{counter['files']} files changed: {counter['attribs']} attributes changed, {counter['dels']} attributes deleted")
     else :

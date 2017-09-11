@@ -28,9 +28,9 @@ This utility only works on the "user." namespace of the attributes
 
 ```
 Type:        function
-String form: <function run at 0x7fe6a1c51400>
+String form: <function run at 0x7ffbd7d22268>
 File:        ~/projekte/xattr-editor/xattr-edit.py
-Line:        180
+Line:        213
 Docstring:   Interactive mode:
 
       xattr-edit.py [PATH/GLOB PATTERN]
@@ -57,14 +57,14 @@ Dump extended attributes to file (to edit) :
 
 [GLOB PATTERN] supports patters from python pathlib, like './**/*gz' for "all .gz files in all directories below this one".
 
---delete=False will avoid deleting extended attributes that are present in the input data, but not in the files
+--delete=True will avoid deleting extended attributes that are present in the input data, but not in the files
 
---force='("date","author")' will insert empty attributes with the names listed (date and author) for every file, like a blank form to be filled in. Please use a python tuple literal like the one above, e.g. --force='()' for en empty list. The default list is defined in the config module whithin this module.
+--edit='("date","author")' will limit editing to the listed attributes, inserting empty values if they are not present. Please use a python tuple literal like the one above, and --edit='()' to edit all attributes. The default list is defined in the config module whithin this module.
 
 --loglevel=DEBUG|INFO|ERROR. Default is "INFO"
 
-Usage:       xattr-edit.py [PATH] [FORCE] [DELETE] [LOGLEVEL] [FROMFILE]
-             xattr-edit.py [--path PATH] [--force FORCE] [--delete DELETE] [--loglevel LOGLEVEL] [--fromfile FROMFILE]
+Usage:       xattr-edit.py [PATH] [EDIT] [DELETE] [LOGLEVEL] [FROMFILE]
+             xattr-edit.py [--path PATH] [--edit EDIT] [--delete DELETE] [--loglevel LOGLEVEL] [--fromfile FROMFILE]
 ```
 
 
