@@ -1,0 +1,39 @@
+cat << __HERE__
+
+# xattr-edit.py
+
+This utility makes exporting, importing and bulk editing of extended file system attributes in the "user." namespace easy, either with your favourite editor or by tools that can generate or manipulate text files. 
+
+It needs Python 3.6 and these fine libraries, mentioned in \`requirements.txt\`:
+
+$(printf '```')
+$(cat requirements.txt)
+$(printf '```')
+
+
+
+## Extended Attributes
+
+These attributes are supported by a lot of Mac and Unix filesystems, and if you take precautions, they can survive rsync, cp and tar. For details, please see https://en.wikipedia.org/wiki/Extended_file_attributes on Wikipedia.
+
+This utility only works on the "user." namespace of the attributes
+
+## Usage and Help from xattr-edit.py
+
+$(printf '```')
+$(python xattr-edit.py -- --help 2>&1 )
+$(printf '```')
+
+
+
+## Thanks to
+
+  - [ArchieML](http://archieml.org/) ;-) - the human friendly intermediate format used to edit the attributes
+
+  - [fire](https://github.com/google/python-fire) - makes a command line utility out of every python object
+
+
+
+
+
+__HERE__
