@@ -28,27 +28,29 @@ This utility only works on the "user." namespace of the attributes
 
 ```
 Type:        function
-String form: <function run at 0x7f5b16a5f488>
+String form: <function run at 0x7fe6a1c51400>
 File:        ~/projekte/xattr-editor/xattr-edit.py
-Line:        176
+Line:        180
 Docstring:   Interactive mode:
 
-      xattr-editor [PATH/GLOB PATTERN]
+      xattr-edit.py [PATH/GLOB PATTERN]
 
 
 
 Dump extended attributes to file (to edit) :
 
-      xattr-editor [PATH/GLOB PATTERN] >attrlist.txt
+      xattr-edit.py [PATH/GLOB PATTERN] >attrlist.txt
 
        - or (filenames from stdin) -
 
-      find . -name '*png' | xattr-editor >attrlist.txt
+      find . -name '*png' | xattr-edit.py >attrlist.txt
 
 
       (then edit attrlist.txt, and then)
 
-      xattr-editor --fromfile=attrlist.txt
+      xattr-edit.py --fromfile=attrlist.txt
+
+      --fromfile=- will read from <stdin>.
 
 
 
@@ -59,7 +61,7 @@ Dump extended attributes to file (to edit) :
 
 --force='("date","author")' will insert empty attributes with the names listed (date and author) for every file, like a blank form to be filled in. Please use a python tuple literal like the one above, e.g. --force='()' for en empty list. The default list is defined in the config module whithin this module.
 
---loglevel=10 will set logging to "DEBUG", --loglevel=40 to "ERROR". Default is 20 ("INFO")
+--loglevel=DEBUG|INFO|ERROR. Default is "INFO"
 
 Usage:       xattr-edit.py [PATH] [FORCE] [DELETE] [LOGLEVEL] [FROMFILE]
              xattr-edit.py [--path PATH] [--force FORCE] [--delete DELETE] [--loglevel LOGLEVEL] [--fromfile FROMFILE]
