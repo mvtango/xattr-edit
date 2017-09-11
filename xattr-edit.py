@@ -174,6 +174,39 @@ def test_archieml() :
 
 
 def run(path='',force=config.force,delete=True,loglevel=config.loglevel,fromfile=None) :
+    """
+
+    Interactive mode:
+
+          xattr-editor [PATH/GLOB PATTERN]
+
+
+
+    Dump extended attributes to file (to edit) :
+
+          xattr-editor [PATH/GLOB PATTERN] >attrlist.txt
+
+           - or (filenames from stdin) -
+
+          find . -name '*png' | xattr-editor >attrlist.txt
+
+
+          (then edit attrlist.txt, and then)
+
+          xattr-editor --fromfile=attrlist.txt
+
+
+
+
+    [GLOB PATTERN] supports patters from python pathlib, like './**/*gz' for "all .gz files in all directories below this one".
+
+    --delete=False will avoid deleting extended attributes that are present in the input data, but not in the files
+
+    --force='("date","author")' will insert empty attributes with the names listed (date and author) for every file, like a blank form to be filled in. Please use a python tuple literal like the one above, e.g. --force='()' for en empty list. The default list is defined in the config module whithin this module.
+
+    --loglevel=10 will set logging to "DEBUG", --loglevel=40 to "ERROR". Default is 20 ("INFO")
+
+    """
     logging.basicConfig(level=loglevel,stream=sys.stderr)
     counter=False
     if sys.stdout.isatty() and sys.stdin.isatty():
