@@ -12,9 +12,9 @@ import sys
 import tempfile
 import subprocess
 import logging
+import re
 
 logger=logging.getLogger(__name__)
-
 
 
 env = Environment()
@@ -57,6 +57,17 @@ path: {{file.path}}
 """)
 
 
+def to_pathglob(s) :
+    elements=s.split(os.path.sep)
+    found=None
+    for a in enumerate(elements) :
+        if re.search(r"[\[\?\*]",a[1]) :
+            found = a[0]
+            break
+    if found is not None :
+        return Path(os.path.sep.join(elements[:found])).glob(os.path.sep.join(elements[found:]) or '*.*')
+    else :
+        return [Path(s)]
 
 
 def render(items,edit=config.edit) :
@@ -127,7 +138,7 @@ stattuple=namedtuple("stattuple",[b[0] for b in sorted([(a[3:].lower(),getattr(s
 
 def metalist(pattern) :
     if pattern != '' :
-        for p in Path(os.environ["PWD"]).glob(pattern) :
+        for p in to_pathglob(pattern) :
             yield dict(path=p,stat=stattuple(*p.stat()),attr=attrwrapper(p))
     else :
         if not sys.stdin.isatty() :
@@ -239,7 +250,7 @@ def run(path='',edit=config.edit,delete=False,loglevel=config.loglevel,fromfile=
 
     [GLOB PATTERN] supports patters from python pathlib, like './**/*gz' for "all .gz files in all directories below this one".
 
-    --delete=True will avoid deleting extended attributes that are present in the input data, but not in the files
+    --delete=True delete extended attributes that are not present in the input data. Default is False (keep them).
 
     --edit='("date","author")' will limit editing to the listed attributes, inserting empty values if they are not present. Please use a python tuple literal like the one above, and --edit='()' to edit all attributes. The default list is defined in the config module whithin this module.
 
@@ -277,5 +288,4 @@ def run(path='',edit=config.edit,delete=False,loglevel=config.loglevel,fromfile=
 
 if __name__=='__main__' :
     fire.Fire(run)
-
 
