@@ -16,12 +16,14 @@ $(printf '```')
 
 These attributes are supported by a lot of Mac and Unix filesystems, and if you take precautions, they can survive rsync, cp and tar. For details, please see https://en.wikipedia.org/wiki/Extended_file_attributes on Wikipedia.
 
+The switch --copy keeps a text file with the attribute values around. If you place it into the right directory, it can be picked up by file mode transfers that ignore extended attributes, and attributes can easily be restored using this utility. 
+
 This utility only works on the "user." namespace of the attributes
 
-## Usage and Help from xattr-edit.py
+## Usage and Help from \`xattr-edit.py -- --help\`
 
 $(printf '```')
-$(python xattr-edit.py -- --help 2>&1 )
+$(python xattr-edit.py -- --help 2>&1 | sed 1,5d )
 $(printf '```')
 
 

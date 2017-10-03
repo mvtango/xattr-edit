@@ -22,20 +22,26 @@ Jinja2==2.9.6
 
 These attributes are supported by a lot of Mac and Unix filesystems, and if you take precautions, they can survive rsync, cp and tar. For details, please see https://en.wikipedia.org/wiki/Extended_file_attributes on Wikipedia.
 
+The switch --copy keeps a text file with the attribute values around. If you place it into the right directory, it can be picked up by file mode transfers that ignore extended attributes, and attributes can easily be restored using this utility. 
+
 This utility only works on the "user." namespace of the attributes
 
-## Usage and Help from xattr-edit.py
+## Usage and Help from `xattr-edit.py -- --help`
 
 ```
-Type:        function
-String form: <function run at 0x7ffbd7d22268>
-File:        ~/projekte/xattr-editor/xattr-edit.py
-Line:        213
-Docstring:   Interactive mode:
+
+Interactive mode:
 
       xattr-edit.py [PATH/GLOB PATTERN]
 
+      (edits extended attributes in place)
 
+      xattr-edit.py --copy=attributes.txt [PATH/GLOB PATTERN]
+
+      (This version keeps a copy of the extended attributes  in a text file,
+      so they can survive Dropbox, S3 or other file transfers. You can
+      then read them at the other end of the file transfer using the
+      --fromfile parameter, see below.)
 
 Dump extended attributes to file (to edit) :
 
@@ -55,16 +61,23 @@ Dump extended attributes to file (to edit) :
 
 
 
-[GLOB PATTERN] supports patters from python pathlib, like './**/*gz' for "all .gz files in all directories below this one".
+[GLOB PATTERN] supports patters from python pathlib, like './**/*gz' for
+"all .gz files in all directories below this one".
 
---delete=True will avoid deleting extended attributes that are present in the input data, but not in the files
+--delete=True delete extended attributes that are listed in the --edit
+  parameter, but are not present in the input data.
+  Default is False (keep those attributes).
 
---edit='("date","author")' will limit editing to the listed attributes, inserting empty values if they are not present. Please use a python tuple literal like the one above, and --edit='()' to edit all attributes. The default list is defined in the config module whithin this module.
+--edit='("date","author")' will limit editing to the listed attributes,
+  inserting empty values if they are not present.
+  Please use a python tuple literal like the one above, and --edit='()'
+  to edit all attributes.
+  The default list is defined in the config module whithin this module.
 
 --loglevel=DEBUG|INFO|ERROR. Default is "INFO"
 
-Usage:       xattr-edit.py [PATH] [EDIT] [DELETE] [LOGLEVEL] [FROMFILE]
-             xattr-edit.py [--path PATH] [--edit EDIT] [--delete DELETE] [--loglevel LOGLEVEL] [--fromfile FROMFILE]
+Usage:       xattr-edit.py [PATH] [COPY] [EDIT] [DELETE] [LOGLEVEL] [FROMFILE]
+             xattr-edit.py [--path PATH] [--copy COPY] [--edit EDIT] [--delete DELETE] [--loglevel LOGLEVEL] [--fromfile FROMFILE]
 ```
 
 
@@ -76,10 +89,6 @@ Usage:       xattr-edit.py [PATH] [EDIT] [DELETE] [LOGLEVEL] [FROMFILE]
   - [fire](https://github.com/google/python-fire) - makes a command line utility out of every python object
 
 
-## Ideas
-
-Add extended attribute support to S3 objects, as per 
-http://docs.aws.amazon.com/AmazonS3/latest/dev/UsingMetadata.html#object-metadata
 
 
 

@@ -1,5 +1,6 @@
 #! pyenv which python3.6
 import os
+import copy
 from pathlib import Path
 from xattr import xattr
 import fire
@@ -39,6 +40,8 @@ simpler - a format "optimized for human writability" (and machine
 readability) created at the New York Times. See http://archieml.org
 for reference.
 
+Pre-allocated field names: {{ edit | join(",") }}
+
 {% for file in items %}
 {{ "{files." }}{{ file.stat.ino }}{{ "}" }}
 name: {{file.path.name}}
@@ -71,8 +74,7 @@ path: {{file.path}}
 {% endfor %}
 """)
 
-
-def to_pathglob(s) :
+def split_pathglob(s) :
     elements=s.split(os.path.sep)
     found=None
     for a in enumerate(elements) :
@@ -80,9 +82,18 @@ def to_pathglob(s) :
             found = a[0]
             break
     if found is not None :
-        return Path(os.path.sep.join(elements[:found])).glob(os.path.sep.join(elements[found:]) or '*.*')
+        return (os.path.sep.join(elements[:found]),os.path.sep.join(elements[found:]) or '*.*')
     else :
-        return [Path(s)]
+        return (s,None)
+
+def to_pathglob(s) :
+    """ returns iterable from patterns like "/var/log/**/*.log"
+    """
+    (prefix,rest)=split_pathglob(s)
+    if rest is not None :
+        return Path(prefix).glob(rest)
+    else :
+        return [Path(prefix)]
 
 
 def render(items,edit=config.edit) :
@@ -125,6 +136,7 @@ def applychanges(f,delete=False,edit=()) :
         data=archieml.load(open(f))
     counter=dict(files=0,attribs=0,dels=0)
     if "files" not in data :
+        dddd
         logger.error(f"No 'files' list found in edited file {f}")
         return {}
     for filedata in data["files"].values() :
@@ -162,13 +174,13 @@ def applychanges(f,delete=False,edit=()) :
             if delete :
                 deleted=set(attr.keys())-(set(filedata.keys())-set(config.myattrs))
                 for k in deleted :
+                    if edit and k not in edit :
+                        logging.debug(f"Ignoring deletion request for {k} - not in edit list {edit}")
+                        continue
                     if not changing :
                         changing = True
                         logger.info(f"Changing xattrs of {filedata['path']}:")
                         counter["files"]+=1
-                    if edit and k not in edit :
-                        logging.debug(f"Ignoring deletion request for {k} - not in edit list {edit}")
-                        continue
                     v=attr[k]
                     del attr[k]
                     logger.info(f"  - deleted attribute {k} value '{v}'")
@@ -190,14 +202,23 @@ def test_archieml() :
     pprint.pprint(archieml.loads(a))
 
 
-def run(path='',edit=config.edit,delete=False,loglevel=config.loglevel,fromfile=None) :
+def run(path='',copy=None,edit=config.edit,delete=False,loglevel=config.loglevel,fromfile=None) :
     """
+
+    Tool to interactively or programmatically edit extended attributes.
 
     Interactive mode:
 
           xattr-edit.py [PATH/GLOB PATTERN]
 
+          (edits extended attributes in place)
 
+          xattr-edit.py --copy=attributes.txt [PATH/GLOB PATTERN]
+
+          (This version keeps a copy of the extended attributes  in a text file,
+          so they can survive Dropbox, S3 or other file transfers. You can
+          then read them at the other end of the file transfer using the
+          --fromfile parameter, see below.)
 
     Dump extended attributes to file (to edit) :
 
@@ -217,11 +238,18 @@ def run(path='',edit=config.edit,delete=False,loglevel=config.loglevel,fromfile=
 
 
 
-    [GLOB PATTERN] supports patters from python pathlib, like './**/*gz' for "all .gz files in all directories below this one".
+    [GLOB PATTERN] supports patters from python pathlib, like './**/*gz' for
+    "all .gz files in all directories below this one".
 
-    --delete=True delete extended attributes that are not present in the input data. Default is False (keep them).
+    --delete=True delete extended attributes that are listed in the --edit
+      parameter, but are not present in the input data.
+      Default is False (keep those attributes).
 
-    --edit='("date","author")' will limit editing to the listed attributes, inserting empty values if they are not present. Please use a python tuple literal like the one above, and --edit='()' to edit all attributes. The default list is defined in the config module whithin this module.
+    --edit='("date","author")' will limit editing to the listed attributes,
+      inserting empty values if they are not present.
+      Please use a python tuple literal like the one above, and --edit='()'
+      to edit all attributes.
+      The default list is defined in the config module whithin this module.
 
     --loglevel=DEBUG|INFO|ERROR. Default is "INFO"
 
@@ -234,11 +262,19 @@ def run(path='',edit=config.edit,delete=False,loglevel=config.loglevel,fromfile=
     counter=False
     if sys.stdout.isatty() and sys.stdin.isatty():
         if fromfile is None:
-            logger.info("Interactive Edit Mode")
-            with tempfile.NamedTemporaryFile(mode="w",encoding="utf-8",delete=False) as tf :
-                tf.write(render(items=metalist(path),edit=edit))
-                tf.close()
-                subprocess.run([os.environ.get("EDITOR",""),tf.name])
+            if archive is None :
+                logger.info("Interactive Edit Mode - Temporary File")
+                with tempfile.NamedTemporaryFile(mode="w",encoding="utf-8",delete=False) as tf :
+                    tf.write(render(items=metalist(path),edit=edit))
+                    tf.close()
+                    subprocess.run([os.environ.get("EDITOR",""),tf.name])
+                    counter=applychanges(tf.name,delete=delete,edit=edit)
+            else :
+                logger.info(f"Interactive Edit Mode - Archive file {archive}")
+                with open(archive,mode="w",encoding="utf-8") as tf :
+                    tf.write(render(items=metalist(path),edit=edit))
+                    tf.close()
+                    subprocess.run([os.environ.get("EDITOR",""),tf.name])
                 counter=applychanges(tf.name,delete=delete,edit=edit)
     else :
         if fromfile is None :
