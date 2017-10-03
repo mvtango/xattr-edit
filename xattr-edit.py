@@ -13,6 +13,7 @@ import tempfile
 import subprocess
 import logging
 import re
+from collections import UserDict
 
 logger=logging.getLogger(__name__)
 
@@ -78,6 +79,10 @@ def render(items,edit=config.edit) :
 
 
 class attrwrapper(xattr) :
+    """ Changes from xattr: Uses user. namespace as default
+        Converts values to string, base85encodes values that
+        cannot be handled as unicode strings
+    """
 
     def get(self,item,default='') :
         if item.find("user.")==-1 :
@@ -136,15 +141,25 @@ class attrwrapper(xattr) :
 stattuple=namedtuple("stattuple",[b[0] for b in sorted([(a[3:].lower(),getattr(stat,a)) for a in dir(stat) if a.find("ST_")==0],key=lambda a: a[1])])
 
 
+class FileAttrObject(object) :
+
+    __slots__ = ( 'path','stat','attr' )
+
+    def __init__(self,p) :
+        self.path=p
+        self.stat=stattuple(*p.stat())
+        self.attr=attrwrapper(p)
+
+
 def metalist(pattern) :
     if pattern != '' :
         for p in to_pathglob(pattern) :
-            yield dict(path=p,stat=stattuple(*p.stat()),attr=attrwrapper(p))
+            yield FileAttrObject(p)
     else :
         if not sys.stdin.isatty() :
             for pa in sys.stdin.readlines() :
                 p=Path(pa[:-1])
-                yield dict(path=p,stat=stattuple(*p.stat()),attr=attrwrapper(p))
+                yield FileAttrObject(p)
         else :
             logger.error("Expected file list at <stdin>")
 
