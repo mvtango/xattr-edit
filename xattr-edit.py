@@ -15,6 +15,8 @@ import logging
 import re
 from collections import UserDict
 
+from userxattr import UserXattr
+
 logger=logging.getLogger(__name__)
 
 
@@ -32,27 +34,39 @@ class config:
     loglevel = "INFO"
 
     some_template=env.from_string("""
+This file is an ArchieML File. ArchieML is a bit like YAML, only
+simpler - a format "optimized for human writability" (and machine
+readability) created at the New York Times. See http://archieml.org
+for reference.
+
 {% for file in items %}
 {{ "{files." }}{{ file.stat.ino }}{{ "}" }}
 name: {{file.path.name}}
 path: {{file.path}}
---------------------------------------------------------------------------------------
+--------------------------------edit-below-this-line-------
 {%- for k in edit : %}
 {{ k }}: {{ file.attr.get(k) }}
 {%- endfor %}
+--------------------------------edit-above-this-line-------
 
 {% endfor %}
 """)
 
     all_template=env.from_string("""
+This file is an ArchieML File. ArchieML is a bit like YAML, only
+simpler - a format "optimized for human writability" (and machine
+readability) created at the New York Times. See http://archieml.org
+for reference.
+
 {% for file in items %}
 {{ "{files." }}{{ file.stat.ino }}{{ "}" }}
 name: {{file.path.name}}
 path: {{file.path}}
---------------------------------------------------------------------------------------
+--------------------------------edit-below-this-line-------
 {%- for k,v in file.attr.items() : %}
 {{ k }}: {{ v }}
 {%- endfor %}
+--------------------------------edit-above-this-line-------
 
 {% endfor %}
 """)
@@ -78,66 +92,6 @@ def render(items,edit=config.edit) :
         return config.all_template.render(items=items)
 
 
-class attrwrapper(xattr) :
-    """ Changes from xattr: Uses user. namespace as default
-        Converts values to string, base85encodes values that
-        cannot be handled as unicode strings
-    """
-
-    def get(self,item,default='') :
-        if item.find("user.")==-1 :
-            item=f"user.{item}"
-        try :
-            e=xattr.get(self,item)
-        except OSError :
-            e=default
-        if type(e) == type(b'') :
-            try :
-                e=e.decode("utf-8")
-            except UnicodeDecodeError :
-                pass
-                e=base64.b85encode(e)
-        return e
-
-    def set(self,item,value) :
-        if item.find("user.")==-1 :
-            item=f"user.{item}"
-        test=self.get(item)
-        if test[0:2]=="b'" and value[-1]=="'" :
-                raise ValueError(f"Error setting {item}: Overwriting binary attribute values is currently not supported.")
-                return
-        if value[0:2]=="b'" and value[-1]=="'" :
-            try :
-                value=base64.b85decode(value[2:-1])
-            except ValueError as e :
-                raise ValueError(f"Base 85 decode error: {value} {e}")
-            else :
-                raise ValueError(f"Error setting {item}: Setting binary attribute values is currently not supported.")
-                return
-        if type(value) == type('') :
-            value=value.encode("utf-8")
-        xattr.set(self,item,value)
-
-    def items(self) :
-        for (k,v) in xattr.items(self) :
-            if k.find("user.")==0 :
-                k=k.split(".")[1]
-            yield (k,v)
-
-    def keys(self) :
-        for k in xattr.keys(self) :
-            if k.find("user.")==0 :
-                k=k.split(".")[1]
-            yield k
-
-
-    def __delitem__(self,item) :
-        if item.find("user.")==-1 :
-            item=f"user.{item}"
-        xattr.__delitem__(self,item)
-
-
-
 stattuple=namedtuple("stattuple",[b[0] for b in sorted([(a[3:].lower(),getattr(stat,a)) for a in dir(stat) if a.find("ST_")==0],key=lambda a: a[1])])
 
 
@@ -148,7 +102,7 @@ class FileAttrObject(object) :
     def __init__(self,p) :
         self.path=p
         self.stat=stattuple(*p.stat())
-        self.attr=attrwrapper(p)
+        self.attr=UserXattr(p)
 
 
 def metalist(pattern) :
@@ -174,7 +128,7 @@ def applychanges(f,delete=False,edit=()) :
         logger.error(f"No 'files' list found in edited file {f}")
         return {}
     for filedata in data["files"].values() :
-        attr=attrwrapper(Path(filedata["path"]))
+        attr=UserXattr(Path(filedata["path"]))
         if not os.path.exists(filedata["path"]) :
             logger.error(f"File not found: {filedata['path']}")
         else :

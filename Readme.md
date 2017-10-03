@@ -76,6 +76,10 @@ Usage:       xattr-edit.py [PATH] [EDIT] [DELETE] [LOGLEVEL] [FROMFILE]
   - [fire](https://github.com/google/python-fire) - makes a command line utility out of every python object
 
 
+## Ideas
+
+Add extended attribute support to S3 objects, as per 
+http://docs.aws.amazon.com/AmazonS3/latest/dev/UsingMetadata.html#object-metadata
 
 
 
