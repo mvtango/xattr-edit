@@ -41,6 +41,7 @@ readability) created at the New York Times. See http://archieml.org
 for reference.
 
 Pre-allocated field names: {{ edit | join(",") }}
+{% if path %}Path used: {{ path }}{% endif %}
 
 {% for file in items %}
 {{ "{files." }}{{ file.stat.ino }}{{ "}" }}
@@ -96,11 +97,11 @@ def to_pathglob(s) :
         return [Path(prefix)]
 
 
-def render(items,edit=config.edit) :
+def render(items,edit=config.edit,**kwargs) :
     if edit :
-        return config.some_template.render(items=items,edit=edit)
+        return config.some_template.render(items=items,edit=edit,**kwargs)
     else :
-        return config.all_template.render(items=items)
+        return config.all_template.render(items=items,**kwargs)
 
 
 stattuple=namedtuple("stattuple",[b[0] for b in sorted([(a[3:].lower(),getattr(stat,a)) for a in dir(stat) if a.find("ST_")==0],key=lambda a: a[1])])
@@ -136,7 +137,6 @@ def applychanges(f,delete=False,edit=()) :
         data=archieml.load(open(f))
     counter=dict(files=0,attribs=0,dels=0)
     if "files" not in data :
-        dddd
         logger.error(f"No 'files' list found in edited file {f}")
         return {}
     for filedata in data["files"].values() :
@@ -202,7 +202,7 @@ def test_archieml() :
     pprint.pprint(archieml.loads(a))
 
 
-def run(path='',copy=None,edit=config.edit,delete=False,loglevel=config.loglevel,fromfile=None) :
+def run(path='',attrcopy=None,edit=config.edit,delete=False,loglevel=config.loglevel,fromfile=None) :
     """
 
     Tool to interactively or programmatically edit extended attributes.
@@ -213,7 +213,7 @@ def run(path='',copy=None,edit=config.edit,delete=False,loglevel=config.loglevel
 
           (edits extended attributes in place)
 
-          xattr-edit.py --copy=attributes.txt [PATH/GLOB PATTERN]
+          xattr-edit.py --attrcopy=attributes.txt [PATH/GLOB PATTERN]
 
           (This version keeps a copy of the extended attributes  in a text file,
           so they can survive Dropbox, S3 or other file transfers. You can
@@ -262,7 +262,7 @@ def run(path='',copy=None,edit=config.edit,delete=False,loglevel=config.loglevel
     counter=False
     if sys.stdout.isatty() and sys.stdin.isatty():
         if fromfile is None:
-            if archive is None :
+            if attrcopy is None :
                 logger.info("Interactive Edit Mode - Temporary File")
                 with tempfile.NamedTemporaryFile(mode="w",encoding="utf-8",delete=False) as tf :
                     tf.write(render(items=metalist(path),edit=edit))
@@ -270,12 +270,12 @@ def run(path='',copy=None,edit=config.edit,delete=False,loglevel=config.loglevel
                     subprocess.run([os.environ.get("EDITOR",""),tf.name])
                     counter=applychanges(tf.name,delete=delete,edit=edit)
             else :
-                logger.info(f"Interactive Edit Mode - Archive file {archive}")
-                with open(archive,mode="w",encoding="utf-8") as tf :
-                    tf.write(render(items=metalist(path),edit=edit))
+                logger.info(f"Interactive Edit Mode - Persistent file {attrcopy}")
+                with open(attrcopy,mode="w",encoding="utf-8") as tf :
+                    tf.write(render(items=metalist(path),edit=edit,path=path,attrfile=tf))
                     tf.close()
                     subprocess.run([os.environ.get("EDITOR",""),tf.name])
-                counter=applychanges(tf.name,delete=delete,edit=edit)
+                    counter=applychanges(tf.name,delete=delete,edit=edit)
     else :
         if fromfile is None :
             logger.info(f"STDIN is not a TTY - assuming newline-separated file name list from <stdin>, dumping attributes list to {sys.stdout.name}")
