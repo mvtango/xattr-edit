@@ -22,7 +22,7 @@ Jinja2==2.9.6
 
 These attributes are supported by a lot of Mac and Unix filesystems, and if you take precautions, they can survive rsync, cp and tar. For details, please see https://en.wikipedia.org/wiki/Extended_file_attributes on Wikipedia.
 
-The switch --copy keeps a text file with the attribute values around. If you place it into the right directory, it can be picked up by file mode transfers that ignore extended attributes, and attributes can easily be restored using this utility. 
+The switch --attrcopy keeps a text file with the attribute values around. If you place it into the right directory, it can be picked up by file mode transfers that ignore extended attributes, and attributes can easily be restored using this utility. 
 
 This utility only works on the "user." namespace of the attributes
 
@@ -36,7 +36,7 @@ Interactive mode:
 
       (edits extended attributes in place)
 
-      xattr-edit.py --copy=attributes.txt [PATH/GLOB PATTERN]
+      xattr-edit.py --attrcopy=attributes.txt [PATH/GLOB PATTERN]
 
       (This version keeps a copy of the extended attributes  in a text file,
       so they can survive Dropbox, S3 or other file transfers. You can
@@ -76,8 +76,8 @@ Dump extended attributes to file (to edit) :
 
 --loglevel=DEBUG|INFO|ERROR. Default is "INFO"
 
-Usage:       xattr-edit.py [PATH] [COPY] [EDIT] [DELETE] [LOGLEVEL] [FROMFILE]
-             xattr-edit.py [--path PATH] [--copy COPY] [--edit EDIT] [--delete DELETE] [--loglevel LOGLEVEL] [--fromfile FROMFILE]
+Usage:       xattr-edit.py [PATH] [ATTRCOPY] [EDIT] [DELETE] [LOGLEVEL] [FROMFILE]
+             xattr-edit.py [--path PATH] [--attrcopy ATTRCOPY] [--edit EDIT] [--delete DELETE] [--loglevel LOGLEVEL] [--fromfile FROMFILE]
 ```
 
 
@@ -89,6 +89,12 @@ Usage:       xattr-edit.py [PATH] [COPY] [EDIT] [DELETE] [LOGLEVEL] [FROMFILE]
   - [fire](https://github.com/google/python-fire) - makes a command line utility out of every python object
 
 
+## Further Ideas
 
+
+  - Read/write extended attributes to / from S3 object metadata 
+    http://docs.aws.amazon.com/AmazonS3/latest/dev/UsingMetadata.html#object-metadata
+
+  - Keep persistent extended attribute database in SQLITE / JSON file
 
 
