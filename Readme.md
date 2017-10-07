@@ -38,10 +38,19 @@ Interactive mode:
 
       xattr-edit.py --attrcopy=attributes.txt [PATH/GLOB PATTERN]
 
-      (This version keeps a copy of the extended attributes  in a text file,
+      Save a copy of the extended attributes  in a text file,
       so they can survive Dropbox, S3 or other file transfers. You can
       then read them at the other end of the file transfer using the
-      --fromfile parameter, see below.)
+      --fromfile parameter, see below.
+
+      xattr-edit.py --attrstore=[FILENAME]
+
+      Use a YAML file to store the attributes instead of filesystem
+      extended attributes. Uses the ruamel.yaml module that preserves
+      order and comments.
+
+
+
 
 Dump extended attributes to file (to edit) :
 
@@ -70,14 +79,14 @@ Dump extended attributes to file (to edit) :
 
 --edit='("date","author")' will limit editing to the listed attributes,
   inserting empty values if they are not present.
-  Please use a python tuple literal like the one above, and --edit='()'
-  to edit all attributes.
-  The default list is defined in the config module whithin this module.
+  Please use a python tuple literal like the one above, and
+  --edit='()' to edit all attributes. The default list is
+  defined in the config module whithin this module.
 
 --loglevel=DEBUG|INFO|ERROR. Default is "INFO"
 
-Usage:       xattr-edit.py [PATH] [ATTRCOPY] [EDIT] [DELETE] [LOGLEVEL] [FROMFILE]
-             xattr-edit.py [--path PATH] [--attrcopy ATTRCOPY] [--edit EDIT] [--delete DELETE] [--loglevel LOGLEVEL] [--fromfile FROMFILE]
+Usage:       xattr-edit.py [PATH] [ATTRCOPY] [EDIT] [DELETE] [LOGLEVEL] [FROMFILE] [ATTRSTORE]
+             xattr-edit.py [--path PATH] [--attrcopy ATTRCOPY] [--edit EDIT] [--delete DELETE] [--loglevel LOGLEVEL] [--fromfile FROMFILE] [--attrstore ATTRSTORE]
 ```
 
 

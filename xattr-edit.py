@@ -17,6 +17,7 @@ import re
 from collections import UserDict
 
 from userxattr import UserXattr
+from yamlxattr import YamlXattr
 
 logger=logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ name: {{file.path.name}}
 path: {{file.path}}
 --------------------------------edit-below-this-line-------
 {%- for k in edit : %}
-{{ k }}: {{ file.attr.get(k) }}
+{{ k }}: {{ file.attr.get(k) or "" }}
 {%- endfor %}
 --------------------------------edit-above-this-line-------
 
@@ -111,25 +112,25 @@ class FileAttrObject(object) :
 
     __slots__ = ( 'path','stat','attr' )
 
-    def __init__(self,p) :
+    def __init__(self,p,klass=UserXattr) :
         self.path=p
         self.stat=stattuple(*p.stat())
-        self.attr=UserXattr(p)
+        self.attr=klass(p)
 
 
-def metalist(pattern) :
+def metalist(pattern,klass=UserXattr) :
     if pattern != '' :
         for p in to_pathglob(pattern) :
-            yield FileAttrObject(p)
+            yield FileAttrObject(p,klass=klass)
     else :
         if not sys.stdin.isatty() :
             for pa in sys.stdin.readlines() :
                 p=Path(pa[:-1])
-                yield FileAttrObject(p)
+                yield FileAttrObject(p,klass=klass)
         else :
             logger.error("Expected file list at <stdin>")
 
-def applychanges(f,delete=False,edit=()) :
+def applychanges(f,delete=False,edit=(),klass=UserXattr) :
     if f=='-' :
         data=archieml.load(sys.stdin)
         logger.info("Reading file attribute data from <stdin>")
@@ -140,7 +141,7 @@ def applychanges(f,delete=False,edit=()) :
         logger.error(f"No 'files' list found in edited file {f}")
         return {}
     for filedata in data["files"].values() :
-        attr=UserXattr(Path(filedata["path"]))
+        attr=klass(Path(filedata["path"]))
         if not os.path.exists(filedata["path"]) :
             logger.error(f"File not found: {filedata['path']}")
         else :
@@ -160,17 +161,20 @@ def applychanges(f,delete=False,edit=()) :
                 if cv != v and str(cv) != v:
                     if not changing :
                         changing = True
-                        logger.info(f"Changing xattrs of {filedata['path']}:")
+                        logger.info(f"Changing {klass.__name__} of {filedata['path']}:")
                         counter["files"]+=1
                     try :
-                        attr.set(k,v)
+                        if hasattr(attr,"set") :
+                            attr.set(k,v)
+                        else :
+                            attr[k]=v
                     except (IOError,ValueError) as e :
                         logger.error(f"{e} while trying to change attribute {k} to {v}")
                     else :
                         counter["attribs"]+=1
                         logger.info(f"  - set {k} to '{v}' (old value: '{cv}')")
                 else :
-                    logger.debug(f"  - attribute {k} unchanged")
+                    logger.debug(f"  - attribute {k} unchanged at {v}")
             if delete :
                 deleted=set(attr.keys())-(set(filedata.keys())-set(config.myattrs))
                 for k in deleted :
@@ -202,7 +206,7 @@ def test_archieml() :
     pprint.pprint(archieml.loads(a))
 
 
-def run(path='',attrcopy=None,edit=config.edit,delete=False,loglevel=config.loglevel,fromfile=None) :
+def run(path='',attrcopy=None,edit=config.edit,delete=False,loglevel=config.loglevel,fromfile=None,attrstore=None) :
     """
 
     Tool to interactively or programmatically edit extended attributes.
@@ -215,10 +219,19 @@ def run(path='',attrcopy=None,edit=config.edit,delete=False,loglevel=config.logl
 
           xattr-edit.py --attrcopy=attributes.txt [PATH/GLOB PATTERN]
 
-          (This version keeps a copy of the extended attributes  in a text file,
+          Save a copy of the extended attributes  in a text file,
           so they can survive Dropbox, S3 or other file transfers. You can
           then read them at the other end of the file transfer using the
-          --fromfile parameter, see below.)
+          --fromfile parameter, see below.
+
+          xattr-edit.py --attrstore=[FILENAME]
+
+          Use a YAML file to store the attributes instead of filesystem
+          extended attributes. Uses the ruamel.yaml module that preserves
+          order and comments.
+
+
+
 
     Dump extended attributes to file (to edit) :
 
@@ -247,9 +260,9 @@ def run(path='',attrcopy=None,edit=config.edit,delete=False,loglevel=config.logl
 
     --edit='("date","author")' will limit editing to the listed attributes,
       inserting empty values if they are not present.
-      Please use a python tuple literal like the one above, and --edit='()'
-      to edit all attributes.
-      The default list is defined in the config module whithin this module.
+      Please use a python tuple literal like the one above, and
+      --edit='()' to edit all attributes. The default list is
+      defined in the config module whithin this module.
 
     --loglevel=DEBUG|INFO|ERROR. Default is "INFO"
 
@@ -260,31 +273,40 @@ def run(path='',attrcopy=None,edit=config.edit,delete=False,loglevel=config.logl
         loglevel=logging.INFO
     logging.basicConfig(level=loglevel,stream=sys.stderr)
     counter=False
+    if attrstore is not None :
+        try :
+            YamlXattr(store=attrstore)
+        except Exception as e:
+            raise ValueError(f"{e} while trying to open attrstore {attrstore}")
+        else :
+            aklass=YamlXattr
+    else :
+        aklass=UserXattr
     if sys.stdout.isatty() and sys.stdin.isatty():
         if fromfile is None:
             if attrcopy is None :
                 logger.info("Interactive Edit Mode - Temporary File")
                 with tempfile.NamedTemporaryFile(mode="w",encoding="utf-8",delete=False) as tf :
-                    tf.write(render(items=metalist(path),edit=edit))
+                    tf.write(render(items=metalist(path,klass=aklass),edit=edit))
                     tf.close()
                     subprocess.run([os.environ.get("EDITOR",""),tf.name])
-                    counter=applychanges(tf.name,delete=delete,edit=edit)
+                    counter=applychanges(tf.name,delete=delete,edit=edit,klass=aklass)
             else :
                 logger.info(f"Interactive Edit Mode - Persistent file {attrcopy}")
                 with open(attrcopy,mode="w",encoding="utf-8") as tf :
-                    tf.write(render(items=metalist(path),edit=edit,path=path,attrfile=tf))
+                    tf.write(render(items=metalist(path,klass=aklass),edit=edit,path=path,attrfile=tf))
                     tf.close()
                     subprocess.run([os.environ.get("EDITOR",""),tf.name])
-                    counter=applychanges(tf.name,delete=delete,edit=edit)
+                    counter=applychanges(tf.name,delete=delete,edit=edit,klass=aklass)
     else :
         if fromfile is None :
             logger.info(f"STDIN is not a TTY - assuming newline-separated file name list from <stdin>, dumping attributes list to {sys.stdout.name}")
-            sys.stdout.write(render(items=metalist(path),edit=edit))
+            sys.stdout.write(render(items=metalist(path,klass=aklass),edit=edit))
         else :
             logger.info(f"STDIN is not a TTY, --fromfile parameter is given  - assuming attributes list from <stdin>.")
     if fromfile is not None :
         logger.info(f"Reading {fromfile} for changes")
-        counter=applychanges(fromfile,delete=delete,edit=edit)
+        counter=applychanges(fromfile,delete=delete,edit=edit,klass=aklass)
     if counter and counter.get("files",0)>0 :
         logger.info(f"{counter['files']} files changed: {counter['attribs']} attributes changed, {counter['dels']} attributes deleted")
     else :
