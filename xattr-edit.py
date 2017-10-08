@@ -18,6 +18,8 @@ from collections import UserDict
 
 from userxattr import UserXattr
 from yamlxattr import YamlXattr
+import pyexiv2
+
 
 logger=logging.getLogger(__name__)
 
@@ -52,7 +54,16 @@ path: {{file.path}}
 {%- for k in edit : %}
 {{ k }}: {{ file.attr.get(k) or "" }}
 {%- endfor %}
+{%- if file.metadata['Exif.Photo.DateTimeOriginal'] %}
+DateTimeOriginal: {{ file.metadata['Exif.Photo.DateTimeOriginal'].value }}
+{%- endif %}
 --------------------------------edit-above-this-line-------
+{% if file.metadata %}:skip
+{%- for (k,v) in file.metadata.items(): %}
+{{ k }}: {{ v | string }}
+{%- endfor %}
+:endskip
+{% endif %}
 
 {% endfor %}
 """)
@@ -110,12 +121,21 @@ stattuple=namedtuple("stattuple",[b[0] for b in sorted([(a[3:].lower(),getattr(s
 
 class FileAttrObject(object) :
 
-    __slots__ = ( 'path','stat','attr' )
+    __slots__ = ( 'path','stat','attr','metadata' )
 
     def __init__(self,p,klass=UserXattr) :
         self.path=p
         self.stat=stattuple(*p.stat())
         self.attr=klass(p)
+        try :
+            metadata=pyexiv2.ImageMetadata(p.as_posix())
+            metadata.read()
+        except OSError :
+            self.metadata={}
+        else :
+            self.metadata=metadata
+
+
 
 
 def metalist(pattern,klass=UserXattr) :
