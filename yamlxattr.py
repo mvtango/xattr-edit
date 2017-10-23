@@ -1,19 +1,27 @@
 # Singleton/SingletonPattern.py
 
 from ruamel.yaml import YAML
+from ruamel.yaml.compat import ordereddict
 from collections import UserDict
 from tempfile import NamedTemporaryFile
 import os,sys
 
-yaml=YAML() # typ="safe")
 import logging
+
+class MyYAML(YAML):
+    def __init__(self):
+        YAML.__init__(self)
+        self.preserve_quotes = True
+        self.indent(mapping=4, sequence=4, offset=2)
+
+yaml=MyYAML()
 
 
 logging.basicConfig(stream=sys.stderr,level=logging.DEBUG)
 
 logger=logging.getLogger(__name__)
 
-class emptystring(UserDict) :
+class emptystring(ordereddict) :
 
     def get(self,key,default='') :
         if key in self :
@@ -34,7 +42,7 @@ class YamlXattr():
                         len(list(self.store.keys())),
                         self.filename))
             except FileNotFoundError:
-                self.store = dict()
+                self.store = ordereddict()
                 logger.debug(f"{filename} not found, creating new store")
 
 
@@ -46,7 +54,7 @@ class YamlXattr():
             if key is None :
                 if fkey not in self.store :
                     logger.debug(f"{fkey} - no attr found, initializing")
-                    self.store[fkey]=emptystring()
+                    self.store[fkey]=ordereddict()
                 return self.store[fkey]
             else :
                 return self.store[fkey][key]

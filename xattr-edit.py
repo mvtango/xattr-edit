@@ -1,11 +1,11 @@
-#! pyenv which python3.6
+#! /home/martin/.virtualenvs/cmdline/bin/python
 import os
 import copy
 from pathlib import Path
 from xattr import xattr
 import fire
 import archieml
-from jinja2 import Environment
+from jinja2 import Environment, FileSystemLoader
 from collections import namedtuple
 import stat
 import base64
@@ -24,7 +24,7 @@ import pyexiv2
 logger=logging.getLogger(__name__)
 
 
-env = Environment()
+env = Environment(loader=FileSystemLoader(os.getcwd()))
 
 env.filters["base64"]=lambda a : base64.b64encode(str(a).encode("utf-8")).decode("utf-8")
 
@@ -109,12 +109,15 @@ def to_pathglob(s) :
         return [Path(prefix)]
 
 
-def render(items,edit=config.edit,**kwargs) :
-    if edit :
-        return config.some_template.render(items=items,edit=edit,**kwargs)
+def render(items,edit=config.edit,template=None,**kwargs) :
+    if template is None :
+        if edit :
+            tpl =  config.some_template
+        else :
+            tpl =  config.all_template
     else :
-        return config.all_template.render(items=items,**kwargs)
-
+            tpl = env.get_template(template)
+    return tpl.render(items=items,edit=edit,**kwargs)
 
 stattuple=namedtuple("stattuple",[b[0] for b in sorted([(a[3:].lower(),getattr(stat,a)) for a in dir(stat) if a.find("ST_")==0],key=lambda a: a[1])])
 
@@ -174,7 +177,10 @@ def applychanges(f,delete=False,edit=(),klass=UserXattr) :
                 if edit and k not in edit :
                     logging.debug(f"Ignoring {k} - not in edit list {edit}")
                     continue
-                cv=attr.get(k,default=None)
+                try :
+                    cv=attr.get(k)
+                except KeyError :
+                    cv=None
                 # if cv == v :
                 #    logger.debug(f"Unchanged: {k}")
                 # else :
@@ -226,7 +232,7 @@ def test_archieml() :
     pprint.pprint(archieml.loads(a))
 
 
-def run(path='',attrcopy=None,edit=config.edit,delete=False,loglevel=config.loglevel,fromfile=None,attrstore=None) :
+def run(path='',attrcopy=None,edit=config.edit,delete=False,loglevel=config.loglevel,fromfile=None,attrstore=None,template=None) :
     """
 
     Tool to interactively or programmatically edit extended attributes.
@@ -307,21 +313,21 @@ def run(path='',attrcopy=None,edit=config.edit,delete=False,loglevel=config.logl
             if attrcopy is None :
                 logger.info("Interactive Edit Mode - Temporary File")
                 with tempfile.NamedTemporaryFile(mode="w",encoding="utf-8",delete=False) as tf :
-                    tf.write(render(items=metalist(path,klass=aklass),edit=edit))
+                    tf.write(render(items=metalist(path,klass=aklass),edit=edit,template=template))
                     tf.close()
                     subprocess.run([os.environ.get("EDITOR",""),tf.name])
                     counter=applychanges(tf.name,delete=delete,edit=edit,klass=aklass)
             else :
                 logger.info(f"Interactive Edit Mode - Persistent file {attrcopy}")
                 with open(attrcopy,mode="w",encoding="utf-8") as tf :
-                    tf.write(render(items=metalist(path,klass=aklass),edit=edit,path=path,attrfile=tf))
+                    tf.write(render(items=metalist(path,klass=aklass),edit=edit,path=path,attrfile=tf,template=template))
                     tf.close()
                     subprocess.run([os.environ.get("EDITOR",""),tf.name])
                     counter=applychanges(tf.name,delete=delete,edit=edit,klass=aklass)
     else :
         if fromfile is None :
             logger.info(f"STDIN is not a TTY - assuming newline-separated file name list from <stdin>, dumping attributes list to {sys.stdout.name}")
-            sys.stdout.write(render(items=metalist(path,klass=aklass),edit=edit))
+            sys.stdout.write(render(items=metalist(path,klass=aklass),edit=edit,template=template))
         else :
             logger.info(f"STDIN is not a TTY, --fromfile parameter is given  - assuming attributes list from <stdin>.")
     if fromfile is not None :
