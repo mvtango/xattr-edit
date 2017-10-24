@@ -26,8 +26,13 @@ logger=logging.getLogger(__name__)
 
 env = Environment(loader=FileSystemLoader(os.getcwd()))
 
-env.filters["base64"]=lambda a : base64.b64encode(str(a).encode("utf-8")).decode("utf-8")
 
+
+
+
+env.filters["base64"]=lambda a : base64.b64encode(str(a).encode("utf-8")).decode("utf-8")
+env.filters["degree"]=lambda a : "%.6f" % (float(a[0])+float(a[1])/60+float(a[2]/3600))
+env.filters["degreesign"]=lambda a : "  -- "["NEWS".find(a)]
 
 class config:
 
